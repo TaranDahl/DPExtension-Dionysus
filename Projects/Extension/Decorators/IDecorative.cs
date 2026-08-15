@@ -1,5 +1,4 @@
-﻿using PatcherYRpp.Utilities;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,8 +14,15 @@ namespace Extension.Decorators
         public void Remove(Decorator decorator);
     }
 
-    public interface IDecorative<TDecorator> : IDecorative where TDecorator : Decorator
+    // 用于 Decorator 子类（PairDecorator 等），保留原有约束
+    public interface IDecorative<TDecorator> where TDecorator : Decorator
     {
         public IEnumerable<TDecorator> GetDecorators();
+    }
+
+    // 用于接口类型（IEventDecorator、IRenderDecorator），无 Decorator 约束
+    public interface IDecorativeInterface<TInterface>
+    {
+        public IEnumerable<TInterface> GetDecorators();
     }
 }

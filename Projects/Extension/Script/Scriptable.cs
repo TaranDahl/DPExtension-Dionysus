@@ -1,47 +1,29 @@
-﻿using DynamicPatcher;
-using Extension.Ext;
+﻿using Extension.Ext;
 using Extension.Utilities;
 using PatcherYRpp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Extension.Script
 {
-    [AttributeUsage(AttributeTargets.Class)]
-    public sealed class GlobalScriptableAttribute : Attribute
+    public interface IAbstractScriptable
     {
-        public GlobalScriptableAttribute(params Type[] types)
-        {
-            Types = types;
-        }
-
-        public Type[] Types { get; }
+        public void OnUpdate();
     }
-
-    [AttributeUsage(AttributeTargets.Class, Inherited = true)]
-    public sealed class UpdateBeforeAttribute : Attribute
+    public interface IObjectScriptable : IAbstractScriptable
     {
-        public UpdateBeforeAttribute(params Type[] types)
-        {
-            Types = types;
-        }
-
-        public Type[] Types { get; }
+        public void OnPut(CoordStruct coord, Direction faceDir);
+        public void OnRemove();
+        public void OnReceiveDamage(Pointer<int> pDamage, int DistanceFromEpicenter, Pointer<WarheadTypeClass> pWH,
+            Pointer<ObjectClass> pAttacker, bool IgnoreDefenses, bool PreventPassengerEscape, Pointer<HouseClass> pAttackingHouse);
     }
-    [AttributeUsage(AttributeTargets.Class, Inherited = true)]
-    public sealed class UpdateAfterAttribute : Attribute
+    public interface ITechnoScriptable : IObjectScriptable
     {
-        public UpdateAfterAttribute(params Type[] types)
-        {
-            Types = types;
-        }
-
-        public Type[] Types { get; }
+        public void OnFire(Pointer<AbstractClass> pTarget, int weaponIndex);
     }
 
     public interface IScriptable : IReloadable
@@ -49,135 +31,52 @@ namespace Extension.Script
     }
 
     [Serializable]
-    public abstract class Scriptable<T> : ScriptComponent, IScriptable
+    public abstract class Scriptable<T> : IScriptable
     {
         public T Owner { get; protected set; }
-
-        protected Scriptable(T owner) : base()
+        public Scriptable(T owner)
         {
             Owner = owner;
         }
+        public virtual void SaveToStream(IStream stream) { }
+        public virtual void LoadFromStream(IStream stream) { }
     }
 
-    internal static class ScriptableHelpers
+    [Serializable]
+    public class TechnoScriptable : Scriptable<TechnoExt>, ITechnoScriptable
     {
-        class ScriptDepenency
+        public TechnoScriptable(TechnoExt owner) : base(owner)
         {
-            public ScriptDepenency(Script script)
-            {
-                Script = script;
-
-                UpdateAfter = (script.ScriptableType.GetCustomAttribute<UpdateAfterAttribute>()?.Types ?? new Type[0]).ToList();
-                UpdateBefore = (script.ScriptableType.GetCustomAttribute<UpdateBeforeAttribute>()?.Types ?? new Type[0]).ToList();
-            }
-
-            public Script Script;
-            public List<Type> UpdateAfter;
-            public List<Type> UpdateBefore;
-
-            public Type Type => Script.ScriptableType;
-            public List<ScriptDepenency> Links = new();
-            public int Indegree;
         }
 
-        private static List<ScriptDepenency> BuildGraph(List<Script> scripts)
+        public virtual void OnUpdate() { }
+        public virtual void OnPut(CoordStruct coord, Direction faceDir) { }
+        public virtual void OnRemove() { }
+        public virtual void OnReceiveDamage(Pointer<int> pDamage, int DistanceFromEpicenter, Pointer<WarheadTypeClass> pWH,
+            Pointer<ObjectClass> pAttacker, bool IgnoreDefenses, bool PreventPassengerEscape, Pointer<HouseClass> pAttackingHouse)
+        { }
+
+        public virtual void OnFire(Pointer<AbstractClass> pTarget, int weaponIndex) { }
+        public virtual DamageState AfterReceiveDamage(Pointer<int> pDamage, int DistanceFromEpicenter, Pointer<WarheadTypeClass> pWH,
+            Pointer<ObjectClass> pAttacker, bool IgnoreDefenses, bool PreventPassengerEscape, Pointer<HouseClass> pAttackingHouse, DamageState result, int damageTaken)
+        { return result; }
+        public virtual DamageState OnDealDamage(Pointer<int> pDamage, int DistanceFromEpicenter, Pointer<WarheadTypeClass> pWH,
+            Pointer<TechnoClass> pVictim, bool IgnoreDefenses, bool PreventPassengerEscape, Pointer<HouseClass> pAttackingHouse, DamageState result, int damageDealt)
+        { return result; }
+    }
+
+    [Serializable]
+    public class BulletScriptable : Scriptable<BulletExt>, IObjectScriptable
+    {
+        public BulletScriptable(BulletExt owner) : base(owner)
         {
-            var dict = scripts.Select(s => new ScriptDepenency(s)).ToDictionary(d => d.Type);
-
-            // convert UpdateAfter and UpdateBefore to single relation
-            foreach (var pair in dict)
-            {
-                var dep = pair.Value;
-                dep.Links.AddRange(dep.UpdateBefore.Where(t => dict.ContainsKey(t)).Select(t => dict[t]));
-
-                foreach (var t in dep.UpdateAfter.Where(t => dict.ContainsKey(t)))
-                {
-                    dict[t].Links.Add(dep);
-                }
-            }
-
-            foreach (var pair in dict)
-            {
-                var dep = pair.Value;
-                dep.Links.ForEach(d => d.Indegree++);
-            }
-
-            return dict.Values.ToList();
         }
 
-        private static void TopoSort(List<ScriptDepenency> graph)
-        {
-            var tmp = new List<ScriptDepenency>(graph);
-            graph.Clear();
-
-            while (tmp.Count > 0)
-            {
-                int count = tmp.Count;
-                tmp.RemoveAll(d =>
-                {
-                    if (d.Indegree == 0)
-                    {
-                        d.Links.ForEach(d => d.Indegree--);
-                        graph.Add(d);
-                        return true;
-                    }
-
-                    return false;
-                });
-
-                if (count == tmp.Count)
-                {
-                    Logger.LogError("Circle dependent chain detected: {0}", string.Join(", ", tmp.Select(d => d.Type.FullName)));
-                    graph.AddRange(tmp);
-                    return;
-                }
-            }
-        }
-
-        public static void Sort(List<Script> scripts)
-        {
-            var graph = BuildGraph(scripts);
-            TopoSort(graph);
-
-            scripts.Clear();
-            scripts.AddRange(graph.Select(d => d.Script));
-
-            Check(scripts);
-        }
-
-        public static void Check(List<Script> scripts)
-        {
-            var items = scripts.Select(s => new ScriptDepenency(s)).ToList();
-
-            foreach (var item in items)
-            {
-                if (item.UpdateBefore.Count + item.UpdateAfter.Count == 0)
-                    continue;
-
-                int itemIdx = scripts.IndexOf(item.Script);
-                for (int i = 0; i < scripts.Count; i++)
-                {
-                    var cur = scripts[i];
-                    // test if item before cur
-                    if (item.UpdateAfter.Contains(cur.ScriptableType) && i > itemIdx)
-                    {
-                        Logger.LogError("Wrong Order: {0} is before {1}!", item.Script.ScriptableType.Name, cur.ScriptableType.Name);
-                    }
-                    // test if item after cur
-                    if (item.UpdateBefore.Contains(cur.ScriptableType) && i < itemIdx)
-                    {
-                        Logger.LogError("Wrong Order: {0} is after {1}!", item.Script.ScriptableType.Name, cur.ScriptableType.Name);
-                    }
-
-                    foreach (var t in item.UpdateAfter.Concat(item.UpdateBefore))
-                    {
-                        if (!t.IsDefined(typeof(GlobalScriptableAttribute)))
-                        {
-                            Logger.LogError("{0} has no relation to {1} undecorated with GlobalScriptable", item.Type.FullName, t.FullName);
-                        }
-                    }
-                }
-            }
-        }
+        public virtual void OnUpdate() { }
+        public virtual void OnPut(CoordStruct coord, Direction faceDir) { }
+        public virtual void OnRemove() { }
+        public virtual void OnReceiveDamage(Pointer<int> pDamage, int DistanceFromEpicenter, Pointer<WarheadTypeClass> pWH,
+            Pointer<ObjectClass> pAttacker, bool IgnoreDefenses, bool PreventPassengerEscape, Pointer<HouseClass> pAttackingHouse)
+        { }
     }
 }

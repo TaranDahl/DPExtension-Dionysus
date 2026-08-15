@@ -1,31 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
-using System.Security.Permissions;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Extension.Decorators
 {
     [Serializable]
-    class DecoratorMap : Dictionary<DecoratorId, Decorator>
+    class DecoratorMap
     {
-        public DecoratorMap() : base()
+        public DecoratorMap()
         {
-            pairs = new EnumerableBuffer<PairDecorator>(this);
-        }
+            dictionary = new Dictionary<DecoratorId, Decorator>();
 
-        protected DecoratorMap(SerializationInfo info, StreamingContext context) : base(info, context)
-        {
             pairs = new EnumerableBuffer<PairDecorator>(this);
-        }
-
-        [SecurityPermission(SecurityAction.LinkDemand,
-            Flags = SecurityPermissionFlag.SerializationFormatter)]
-        public override void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            base.GetObjectData(info, context);
+            events = new InterfaceEnumerableBuffer<IEventDecorator>(this);
+            drawables = new InterfaceEnumerableBuffer<IRenderDecorator>(this);
         }
 
         public TDecorator CreateDecorator<TDecorator>(DecoratorId id, string description, params object[] parameters) where TDecorator : Decorator
@@ -41,30 +31,47 @@ namespace Extension.Decorators
 
         public Decorator Get(DecoratorId id)
         {
-            if (this.TryGetValue(id, out Decorator decorator))
+            if (this.TryGet(id, out Decorator decorator))
             {
                 return decorator;
             }
             return null;
         }
 
+        public bool TryGet(DecoratorId id, out Decorator decorator)
+        {
+            return dictionary.TryGetValue(id, out decorator);
+        }
+
         public void Add(Decorator decorator)
         {
-            base.Add(decorator.ID, decorator);
+            dictionary.Add(decorator.ID, decorator);
             NotifyChanged();
         }
 
         public void Remove(Decorator decorator)
         {
-            base.Remove(decorator.ID);
+            dictionary.Remove(decorator.ID);
             NotifyChanged();
+        }
+
+        public void Remove(DecoratorId id)
+        {
+            Decorator decorator = this.Get(id);
+            if (decorator != null)
+            {
+                this.Remove(decorator);
+            }
         }
 
         private Action NotifyChanged;
 
         public IEnumerable<PairDecorator> GetPairDecorators() => pairs.Get();
+        public IEnumerable<IEventDecorator> GetEventDecorators() => events.Get();
+        public IEnumerable<IRenderDecorator> GetDrawableDecorators() => drawables.Get();
 
-        // convenient to remove when enumerating
+        Dictionary<DecoratorId, Decorator> dictionary;
+
         [Serializable]
         class EnumerableBuffer<TDecorator> where TDecorator : Decorator
         {
@@ -82,14 +89,43 @@ namespace Extension.Decorators
             {
                 if (hasChanged)
                 {
-                    list = (from d in map.Values where d is TDecorator select d as TDecorator).ToList();
+                    list = (from d in map.dictionary.Values where d is TDecorator select d as TDecorator)
+                        .OrderByDescending(decorator => decorator.Priority)
+                        .ToList();
                     hasChanged = false;
                 }
                 return list;
             }
         }
 
-        [NonSerialized]
+        [Serializable]
+        class InterfaceEnumerableBuffer<TInterface>
+        {
+            DecoratorMap map;
+            List<TInterface> list;
+            public bool hasChanged = true;
+
+            public InterfaceEnumerableBuffer(DecoratorMap map)
+            {
+                this.map = map;
+                map.NotifyChanged += () => hasChanged = true;
+            }
+
+            public IEnumerable<TInterface> Get()
+            {
+                if (hasChanged)
+                {
+                    list = (from d in map.dictionary.Values where d is TInterface select (TInterface)(object)d)
+                        .OrderByDescending(d => (d as Decorator)?.Priority ?? 0)
+                        .ToList();
+                    hasChanged = false;
+                }
+                return list;
+            }
+        }
+
         EnumerableBuffer<PairDecorator> pairs;
+        InterfaceEnumerableBuffer<IEventDecorator> events;
+        InterfaceEnumerableBuffer<IRenderDecorator> drawables;
     }
 }

@@ -8,7 +8,6 @@ using PatcherYRpp;
 using Extension.Ext;
 using Extension.Script;
 using System.Threading.Tasks;
-using PatcherYRpp.Utilities;
 
 namespace Scripts
 {
@@ -19,7 +18,7 @@ namespace Scripts
 
         double factor = 1.0;
         static Pointer<AnimTypeClass> pAnimType => AnimTypeClass.ABSTRACTTYPE_ARRAY.Find("TWLT070");
-        Random random = MathEx.Random;
+        Random random = new Random(114514);
         public override void OnUpdate()
         {
             Pointer<BulletClass> pBullet = Owner.OwnerObject;
@@ -28,7 +27,7 @@ namespace Scripts
             CoordStruct location = pBullet.Ref.Base.Base.GetCoords();
             location += new CoordStruct(random.Next(100, 500), random.Next(100, 500), random.Next(100, 500));
 
-            Pointer<AnimClass> pAnim = YRMemory.Allocate<AnimClass>().Construct(pAnimType, location);
+            Pointer<AnimClass> pLaser = YRMemory.Create<AnimClass>(pAnimType, location);
 
             pBullet.Ref.Velocity.Z = 70 * factor;
             factor = factor - 0.02;
@@ -43,7 +42,7 @@ namespace Scripts
             }
         }
 
-        //[Hook(HookType.WriteBytesHook, Address = 0x7E03F8, Size = 5)]
+        //[Hook(HookType.WriteBytesHook, Address = 0x7E03E8, Size = 5)]
         static public byte[] set_time()
         {
             reset_time();

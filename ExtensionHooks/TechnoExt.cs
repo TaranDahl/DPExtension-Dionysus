@@ -12,6 +12,8 @@ namespace ExtensionHooks
 {
     public class TechnoExtHooks
     {
+        static private int ReceiveDamageContext_OriginalHealth { get; set; }
+
         [Hook(HookType.AresHook, Address = 0x6F3260, Size = 5)]
         static public unsafe UInt32 TechnoClass_CTOR(REGISTERS* R)
         {
@@ -41,6 +43,108 @@ namespace ExtensionHooks
         static public unsafe UInt32 TechnoClass_Save_Suffix(REGISTERS* R)
         {
             return TechnoExt.TechnoClass_Save_Suffix(R);
+        }
+
+
+        [Hook(HookType.AresHook, Address = 0x6F9E50, Size = 5)]
+        static public unsafe UInt32 TechnoClass_Update(REGISTERS* R)
+        {
+            try
+            {
+                return ScriptManager.TechnoClass_Update_Script(R);
+            }
+            catch (Exception e)
+            {
+                Logger.PrintException(e);
+                return (uint)0;
+            }
+        }
+        [Hook(HookType.AresHook, Address = 0x6F6CA0, Size = 7)]
+        static public unsafe UInt32 TechnoClass_Put_Script(REGISTERS* R)
+        {
+            Pointer<TechnoClass> pTechno = (IntPtr)R->ECX;
+            var pCoord = R->Stack<Pointer<CoordStruct>>(0x4);
+            var faceDir = R->Stack<Direction>(0x8);
+
+            TechnoExt ext = TechnoExt.ExtMap.Find(pTechno);
+            ext.Scriptable?.OnPut(pCoord.Data, faceDir);
+
+            return 0;
+        }
+        // avoid hook conflict with phobos feature -- shield
+        //[Hook(HookType.AresHook, Address = 0x6F6AC0, Size = 5)]
+        [Hook(HookType.AresHook, Address = 0x6F6AC4, Size = 5)]
+        static public unsafe UInt32 TechnoClass_Remove_Script(REGISTERS* R)
+        {
+            Pointer<TechnoClass> pTechno = (IntPtr)R->ECX;
+
+            TechnoExt ext = TechnoExt.ExtMap.Find(pTechno);
+            ext.Scriptable?.OnRemove();
+
+            return 0;
+        }
+        [Hook(HookType.AresHook, Address = 0x701900, Size = 6)]
+        static public unsafe UInt32 TechnoClass_ReceiveDamage_Script(REGISTERS* R)
+        {
+            Pointer<TechnoClass> pTechno = (IntPtr)R->ECX;
+            var pDamage = R->Stack<Pointer<int>>(0x4);
+            var distanceFromEpicenter = R->Stack<int>(0x8);
+            var pWH = R->Stack<Pointer<WarheadTypeClass>>(0xC);
+            var pAttacker = R->Stack<Pointer<ObjectClass>>(0x10);
+            var ignoreDefenses = R->Stack<bool>(0x14);
+            var preventPassengerEscape = R->Stack<bool>(0x18);
+            var pAttackingHouse = R->Stack<Pointer<HouseClass>>(0x1C);
+
+            TechnoExt ext = TechnoExt.ExtMap.Find(pTechno);
+            ext.Scriptable?.OnReceiveDamage(pDamage, distanceFromEpicenter, pWH, pAttacker, ignoreDefenses, preventPassengerEscape, pAttackingHouse);
+
+            ReceiveDamageContext_OriginalHealth = pTechno.Ref.Base.Health;
+            return 0;
+        }
+        [Hook(HookType.AresHook, Address = 0x701DFF, Size = 7)]
+        static public unsafe UInt32 AfterReceiveDamage(REGISTERS* R)
+        {
+            Pointer<TechnoClass> pTechno = (IntPtr)R->ESI;
+            DamageState result = (DamageState)R->EAX;
+            int damageDealt = ReceiveDamageContext_OriginalHealth - pTechno.Ref.Base.Health;
+            var pDamage = R->Stack<Pointer<int>>(0xC4 + 0x4);
+            var distanceFromEpicenter = R->Stack<int>(0xC4 + 0x8);
+            var pWH = R->Stack<Pointer<WarheadTypeClass>>(0xC4 + 0xC);
+            var pAttacker = R->Stack<Pointer<ObjectClass>>(0xC4 + 0x10);
+            var pAttackerTechno = R->Stack<Pointer<TechnoClass>>(0xC4 + 0x10);
+            var ignoreDefenses = R->Stack<bool>(0xC4 + 0x14);
+            var preventPassengerEscape = R->Stack<bool>(0xC4 + 0x18);
+            var pAttackingHouse = R->Stack<Pointer<HouseClass>>(0xC4 + 0x1C);
+
+            TechnoExt ext = TechnoExt.ExtMap.Find(pTechno);
+            if (ext.Scriptable != null)
+            {
+                result = ext.Scriptable.AfterReceiveDamage(pDamage, distanceFromEpicenter, pWH, pAttacker, ignoreDefenses, preventPassengerEscape, pAttackingHouse, result, damageDealt);
+            }
+            if (pAttackerTechno.IsNotNull)
+            {
+                TechnoExt attackereExt = TechnoExt.ExtMap.Find(pAttackerTechno);
+                if (attackereExt.Scriptable != null)
+                {
+                    attackereExt.Scriptable.OnDealDamage(pDamage, distanceFromEpicenter, pWH, pTechno, ignoreDefenses, preventPassengerEscape, pAttackingHouse, result, damageDealt);
+                }
+            }
+
+            R->EAX = (uint)result;
+            R->EDI = (uint)result;
+            return 0;
+        }
+        [Hook(HookType.AresHook, Address = 0x6FDD50, Size = 6)]
+        static public unsafe UInt32 TechnoClass_Fire(REGISTERS* R)
+        {
+            try{
+                return ScriptManager.TechnoClass_Fire_Script(R);
+            }
+			catch (Exception e)
+			{
+                Logger.PrintException(e);
+				return (uint)0;
+			}
         }
     }
 }

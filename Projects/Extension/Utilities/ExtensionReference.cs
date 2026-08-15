@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 
 namespace Extension.Utilities
 {
-    [Obsolete("Use extension reference directly.")]
     [Serializable]
     public struct ExtensionReference<TExt> : ISerializable where TExt : class, IExtension
     {
@@ -25,23 +24,17 @@ namespace Extension.Utilities
             {
                 info.AddValue("OwnerObject", (int)ext.OwnerObject);
             }
-            else
-            {
-                info.AddValue("OwnerObject", 0);
-            }
         }
-
         private ExtensionReference(SerializationInfo info, StreamingContext context)
         {
             weakReference = null;
-
-            IntPtr ownerObject = (IntPtr)info.GetInt32("OwnerObject");
-            if (ownerObject != IntPtr.Zero)
+            try
             {
+                IntPtr ownerObject = (IntPtr)info.GetInt32("OwnerObject");
                 storedOwnerObject = new PointerHandle<IntPtr>(ownerObject);
                 SwizzleManagerClass.Instance.Swizzle(ref storedOwnerObject.Pointer);
             }
-            else
+            catch (SerializationException)
             {
                 storedOwnerObject = null;
             }

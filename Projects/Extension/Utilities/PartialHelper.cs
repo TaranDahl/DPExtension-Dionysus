@@ -10,19 +10,16 @@ using System.Threading.Tasks;
 
 namespace Extension.Utilities
 {
-    [Obsolete("use GlobalScriptable instead. this feature will be deprecated later. define IWANT_PARTIAL symbol to enable this feature.")]
     [AttributeUsage(AttributeTargets.Method, Inherited = false)]
     sealed class INILoadActionAttribute : Attribute
     {
     }
 
-    [Obsolete("use GlobalScriptable instead. this feature will be deprecated later. define IWANT_PARTIAL symbol to enable this feature.")]
     [AttributeUsage(AttributeTargets.Method, Inherited = false)]
     sealed class SaveActionAttribute : Attribute
     {
     }
 
-    [Obsolete("use GlobalScriptable instead. this feature will be deprecated later. define IWANT_PARTIAL symbol to enable this feature.")]
     [AttributeUsage(AttributeTargets.Method, Inherited = false)]
     sealed class LoadActionAttribute : Attribute
     {
@@ -32,7 +29,6 @@ namespace Extension.Utilities
     {
         public static void PartialLoadINIConfig<T>(this Extension<T> ext, Pointer<CCINIClass> pINI)
         {
-#if IWANT_PARTIAL
             Type type = ext.GetType();
             MethodInfo[] methods = type.GetMethods();
 
@@ -43,11 +39,9 @@ namespace Extension.Utilities
                     method?.Invoke(ext, new object[] { pINI });
                 }
             }
-#endif
         }
         public static void PartialSaveToStream<T>(this Extension<T> ext, IStream stream)
         {
-#if IWANT_PARTIAL
             Type type = ext.GetType();
             MethodInfo[] methods = type.GetMethods();
 
@@ -58,11 +52,9 @@ namespace Extension.Utilities
                     method?.Invoke(ext, new object[] { stream });
                 }
             }
-#endif
         }
         public static void PartialLoadFromStream<T>(this Extension<T> ext, IStream stream)
         {
-#if IWANT_PARTIAL
             Type type = ext.GetType();
             MethodInfo[] methods = type.GetMethods();
 
@@ -73,7 +65,6 @@ namespace Extension.Utilities
                     method?.Invoke(ext, new object[] { stream });
                 }
             }
-#endif
         }
     }
 }

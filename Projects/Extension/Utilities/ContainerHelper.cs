@@ -9,12 +9,24 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using System.Threading.Tasks;
-using Extension.Serialization;
 
 namespace Extension.Utilities
 {
     public static class ContainerHelper
     {
+        public static uint Write(this IStream stream, byte[] buffer)
+        {
+            uint written = 0;
+            stream.Write(buffer, buffer.Length, Pointer<uint>.AsPointer(ref written));
+            return written;
+        }
+        public static uint Write<T>(this IStream stream, T obj)
+        {
+            var ptr = Pointer<T>.AsPointer(ref obj);
+            byte[] buffer = new byte[Pointer<T>.TypeSize()];
+            Marshal.Copy(ptr, buffer, 0, buffer.Length);
+            return stream.Write(buffer);
+        }
         public static uint WriteObject(this IStream stream, object obj)
         {
             uint written = 0;
@@ -25,7 +37,7 @@ namespace Extension.Utilities
             if (isNull == false)
             {
                 MemoryStream memory = new MemoryStream();
-                MainSerializer.Serialize(memory, obj);
+                Serialization.Serialize(memory, obj);
 
                 byte[] buffer = memory.ToArray();
                 written += stream.Write(buffer.Length);
@@ -35,6 +47,20 @@ namespace Extension.Utilities
             return written;
         }
 
+        public static uint Read(this IStream stream, byte[] buffer)
+        {
+            uint written = 0;
+            stream.Read(buffer, buffer.Length, Pointer<uint>.AsPointer(ref written));
+            return written;
+        }
+        public static uint Read<T>(this IStream stream, ref T obj)
+        {
+            var ptr = Pointer<T>.AsPointer(ref obj);
+            byte[] buffer = new byte[Pointer<T>.TypeSize()];
+            uint written = stream.Read(buffer);
+            Marshal.Copy(buffer, 0, ptr, buffer.Length);
+            return written;
+        }
         public static uint ReadObject<T>(this IStream stream, out T obj) where T : class
         {
             uint written = 0;
@@ -54,10 +80,19 @@ namespace Extension.Utilities
                 written += stream.Read(buffer);
 
                 MemoryStream memory = new MemoryStream(buffer);
-                obj = MainSerializer.Deserialize<T>(memory);
+                obj = Serialization.Deserialize<T>(memory);
             }
 
             return written;
+        }
+
+        public static void Swizzle<T>(this SwizzleManagerClass @this, ref T obj)
+        {
+            SwizzleManagerClass.Instance.Swizzle(Pointer<T>.AsPointer(ref obj).Convert<IntPtr>());
+        }
+        public static void Here_I_Am<T>(this SwizzleManagerClass @this, Pointer<T> oldPtr, ref T obj)
+        {
+            SwizzleManagerClass.Instance.Here_I_Am((int)oldPtr, Pointer<T>.AsPointer(ref obj).Convert<IntPtr>());
         }
 
         public static void Swizzle<TBase, T>(this Extension<TBase> ext, ref T obj)
@@ -93,7 +128,7 @@ namespace Extension.Utilities
         public static IContainer GetContainer<TExt>()
         {
             Type type = typeof(TExt);
-            FieldInfo member = type.GetField("ExtMap", BindingFlags.Static | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+            FieldInfo member = type.GetField("ExtMap");
             return (IContainer)member.GetValue(null);
         }
     }

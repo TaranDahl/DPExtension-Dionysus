@@ -1,3 +1,4 @@
 [submodule "Projects/YRpp"]
 	path = Projects/YRpp
-	url = https://github.com/Xkein/PatcherYRpp.git
+	url = git@github.com:TaranDahl/PatcherYRpp.git
+	branch = my-dp
