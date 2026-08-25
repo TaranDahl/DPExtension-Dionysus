@@ -780,11 +780,13 @@ namespace Extension.Mutators
         protected abstract void UnbuffTechno(Pointer<TechnoClass> techno);
     }
 
+    [Serializable]
     public class MutatorTechnoScriptable : TechnoScriptable
     {
         public Mutator myMutator = null;
         public MutatorTechnoScriptable(TechnoExt owner) : base(owner) { }
     }
+    [Serializable]
     public class MutatorEventDecorator : EventDecorator
     {
         public Mutator myMutator = null;

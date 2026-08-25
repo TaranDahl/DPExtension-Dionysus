@@ -86,6 +86,10 @@ namespace Extension.Mutators
 
         // 检查有效性后才会塞进AvailableMutators
         private static Dictionary<string, (string SWID, int Score)> AvailableMutators = new Dictionary<string, (string, int)>();
+
+        // 进程级一次性初始化标志：AvailableMutators 是静态配置（内容固定），只允许初始化一次。
+        // 用独立标志而非 Count>0 判断，避免语义混淆。
+        private static bool Initialized = false;
         public static List<Type> AvailableMutatorsForRandom = new List<Type>()
         { 
             typeof(BlackDeath),
@@ -228,6 +232,14 @@ namespace Extension.Mutators
         public static void Init()
         {
             // 检查所有因子名称，记录可用的名称和分数
+            // AvailableMutators 是进程内静态、内容固定，只允许初始化一次。
+            // 否则读档后 CurrentFrame 归零会再次进入此处，往字典 Add 重复键抛 ArgumentException。
+            if (Initialized)
+            {
+                return;
+            }
+            Initialized = true;
+
             var player = FindFirstPlayer();
             bool canUseINIMutator = player.IsNotNull;
             if (!canUseINIMutator)
@@ -268,6 +280,7 @@ namespace Extension.Mutators
                 }
                 AvailableMutators.Add(name, pair);
             }
+            Logger.Log("MutatorRandomizer.Init() done. AvailableMutators.Count={0}\n", AvailableMutators.Count);
         }
         private static int GetScoreByName(string name)
         {

@@ -57,6 +57,7 @@
     <Compile Include="Phobos\EventExt.cs" />
     <Compile Include="Phobos\HResult.cs" />
     <Compile Include="Phobos\TechnoExt.cs" />
+    <Compile Include="Phobos\UIExt.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup />

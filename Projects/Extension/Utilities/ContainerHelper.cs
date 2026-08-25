@@ -86,6 +86,33 @@ namespace Extension.Utilities
             return written;
         }
 
+        // Phobos 式块读写：以"4 字节长度前缀 + 数据块"的形式从 IStream 写入/读出一段数据。
+        // 独立成块，避免在 Ares 自己的存读档流中间裸读写造成流错位。
+        public static uint WriteBlockToStream(this IStream stream, byte[] data)
+        {
+            uint written = 0;
+            int length = data != null ? data.Length : 0;
+            written += stream.Write(length);
+            if (data != null && data.Length > 0)
+            {
+                written += stream.Write(data);
+            }
+            return written;
+        }
+
+        public static byte[] ReadBlockFromStream(this IStream stream)
+        {
+            int length = 0;
+            stream.Read(ref length);
+            if (length <= 0)
+            {
+                return new byte[0];
+            }
+            byte[] buffer = new byte[length];
+            stream.Read(buffer);
+            return buffer;
+        }
+
         public static void Swizzle<T>(this SwizzleManagerClass @this, ref T obj)
         {
             SwizzleManagerClass.Instance.Swizzle(Pointer<T>.AsPointer(ref obj).Convert<IntPtr>());

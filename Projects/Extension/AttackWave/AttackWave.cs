@@ -1,4 +1,4 @@
-﻿using DecoratorHooks;
+using DecoratorHooks;
 using DynamicPatcher;
 using Extension.Ext;
 using Extension.Mutators;
@@ -77,6 +77,7 @@ namespace Extension.AttackWave
             // MoveToMissionObject
         }
 
+        [Serializable]
         public struct AttackWaveScriptNode
         {
             public AttackWaveScriptAction Action;

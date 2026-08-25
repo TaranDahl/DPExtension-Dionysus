@@ -85,21 +85,6 @@ namespace ExtensionHooks
         [Hook(HookType.AresHook, Address = 0x55DC99, Size = 5)]
         public static unsafe UInt32 Game_MainLoop_Mutator(REGISTERS* R)
         {
-            if (Game.CurrentFrame == 1)
-            {
-                MutatorCacheManager.OnGameStart(); // 创建缓存管理器实例。TODO ：它实际上不应该在这里，而是和ScenarioClass一起初始化。
-                MutatorRandomizer.Init(); // 初始化突变因子随机器，检查可用的突变因子
-                TargetCellMutator.OnUsableAreaChange(); // 缓存安全区
-                var mutatorToActivate = Mutator.MutatorToTest;
-                if (mutatorToActivate != null)
-                {
-                    var mutator = Mutator.CreateMutator(mutatorToActivate, Pointer<HouseClass>.Zero);
-                    if (mutator != null)
-                    {
-                        mutator.Init();
-                    }
-                }
-            }
             for (; Mutator.ToBeAddedArray.Count > 0; )
             {
                 var mutator = Mutator.ToBeAddedArray[0];

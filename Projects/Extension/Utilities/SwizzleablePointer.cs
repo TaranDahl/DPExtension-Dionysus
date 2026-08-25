@@ -1,4 +1,4 @@
-﻿using PatcherYRpp;
+using PatcherYRpp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,12 +23,17 @@ namespace Extension.Utilities
             Flags = SecurityPermissionFlag.SerializationFormatter)]
         public void GetObjectData(SerializationInfo info, StreamingContext context)
         {
-            info.AddValue("Pointer", (int)Pointer);
+            // handle 可能为 null（default(SwizzleablePointer<T>)），此时序列化为 0（null 指针），避免 NRE。
+            info.AddValue("Pointer", handle != null ? (int)Pointer : 0);
         }
         private SwizzleablePointer(SerializationInfo info, StreamingContext context)
         {
-            handle = new PointerHandle<T>((IntPtr)info.GetInt32("Pointer"));
-            SwizzleManagerClass.Instance.Swizzle(ref Pointer);
+            int ptr = info.GetInt32("Pointer");
+            handle = new PointerHandle<T>((IntPtr)ptr);
+            if (ptr != 0)
+            {
+                SwizzleManagerClass.Instance.Swizzle(ref Pointer);
+            }
         }
 
         public ref T Ref { get => ref Pointer.Ref; }
