@@ -49,6 +49,24 @@ namespace InteropUtils
     }
 
     /// <summary>
+    /// Phobos 通用 UI 框架（UIExt）的 SHP 背景对齐方式。
+    /// 与 Phobos C++ 侧的 <c>UIExt::Panel::ShpAlign</c> 枚举值保持一致。
+    /// </summary>
+    public enum UIExtShpAlign
+    {
+        /// <summary>素材贴在左上角。</summary>
+        TopLeft = 0,
+        /// <summary>素材贴在左下角。</summary>
+        BottomLeft = 1,
+        /// <summary>素材贴在右上角。</summary>
+        TopRight = 2,
+        /// <summary>素材贴在右下角。</summary>
+        BottomRight = 3,
+        /// <summary>素材居中。</summary>
+        Center = 4,
+    }
+
+    /// <summary>
     /// Phobos 通用 UI 框架（UIExt）的 C# 封装。
     /// 对应 Phobos Interop API：src/Interop/UIExt/UIExtApi.h（前缀 <c>UIExt_</c>）。
     /// </summary>
@@ -253,10 +271,10 @@ namespace InteropUtils
             return UIExt_CreateButton(x, y, width, height, text, out control);
         }
 
-        // 对应 Phobos: HRESULT UIExt_CreateIconButton(int x, int y, int width, int height, void* pIcon, void** ppControl)
+        // 对应 Phobos: HRESULT UIExt_CreateIconButton(int x, int y, int width, int height, void** ppControl)
         [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern int UIExt_CreateIconButton(
-            int x, int y, int width, int height, IntPtr pIcon, out IntPtr ppControl);
+            int x, int y, int width, int height, out IntPtr ppControl);
 
         /// <summary>
         /// 创建一个 IconButton（图标按钮）。
@@ -266,15 +284,15 @@ namespace InteropUtils
         /// <param name="y">左上角 Y 坐标。</param>
         /// <param name="width">宽度。</param>
         /// <param name="height">高度。</param>
-        /// <param name="icon">图标表面（BSurface*）指针，通常来自游戏内 Cameo/PCX 表面，可为 <see cref="IntPtr.Zero"/>。</param>
         /// <param name="control">输出：控件句柄。</param>
         /// <returns>
         /// <see cref="HResult.S_OK"/> 表示成功；
         /// <see cref="HResult.E_OUTOFMEMORY"/> 表示创建失败。
         /// </returns>
-        public static int CreateIconButton(int x, int y, int width, int height, IntPtr icon, out IntPtr control)
+        /// <remarks>图标创建后通过 <see cref="Button_SetIconFromFile"/> 设置 PCX 素材。</remarks>
+        public static int CreateIconButton(int x, int y, int width, int height, out IntPtr control)
         {
-            return UIExt_CreateIconButton(x, y, width, height, icon, out control);
+            return UIExt_CreateIconButton(x, y, width, height, out control);
         }
 
         // 对应 Phobos: HRESULT UIExt_CreateCheckBox(int x, int y, int width, int height, const wchar_t* text, void** ppControl)
@@ -624,28 +642,6 @@ namespace InteropUtils
             return UIExt_SetTooltip(control, title, text);
         }
 
-        // 对应 Phobos: HRESULT UIExt_SetIcon(void* pControl, void* pSurface)
-        [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
-        private static extern int UIExt_SetIcon(IntPtr pControl, IntPtr pSurface);
-
-        /// <summary>
-        /// 设置 Button / IconButton 的图标。
-        /// 对应 Phobos Interop API：<c>UIExt_SetIcon</c>。
-        /// </summary>
-        /// <param name="control">Button 句柄。</param>
-        /// <param name="surface">图标表面（BSurface*）指针。</param>
-        /// <returns>
-        /// <see cref="HResult.S_OK"/> 表示成功；<see cref="HResult.E_POINTER"/> 表示句柄为空；
-        /// <see cref="HResult.E_INVALIDARG"/> 表示句柄不是 Button。
-        /// </returns>
-        public static int SetIcon(IntPtr control, IntPtr surface)
-        {
-            if (control == IntPtr.Zero)
-                return HResult.E_POINTER;
-
-            return UIExt_SetIcon(control, surface);
-        }
-
         // 对应 Phobos: HRESULT UIExt_SetBackColor(void* pControl, int r, int g, int b, int opacity)
         [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern int UIExt_SetBackColor(IntPtr pControl, int r, int g, int b, int opacity);
@@ -692,6 +688,42 @@ namespace InteropUtils
                 return HResult.E_POINTER;
 
             return UIExt_SetBorder(control, enabled ? 1 : 0, color);
+        }
+
+        // ============ Panel / Dialog SHP 背景 ============
+
+        // 对应 Phobos: HRESULT UIExt_Panel_SetShpBackground(void* pPanel, const char* shpFile, const char* paletteFile,
+        //     int frame, int offsetX, int offsetY, int align)
+        [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern int UIExt_Panel_SetShpBackground(
+            IntPtr pPanel,
+            [MarshalAs(UnmanagedType.LPStr)] string shpFile,
+            [MarshalAs(UnmanagedType.LPStr)] string paletteFile,
+            int frame, int offsetX, int offsetY, int align);
+
+        /// <summary>
+        /// 给 Panel / Dialog 设置一个 SHP 背景装饰素材。
+        /// 对应 Phobos Interop API：<c>UIExt_Panel_SetShpBackground</c>。
+        /// </summary>
+        /// <param name="panel">Panel / Dialog 句柄。</param>
+        /// <param name="shpFile">游戏目录下的 SHP 文件名（ANSI，如 "SIDEBAR.SHP"）。</param>
+        /// <param name="paletteFile">PAL 文件名；传 null 或空串时使用默认 ANIM_PAL。</param>
+        /// <param name="frame">要绘制的帧号，越界时自动归 0。</param>
+        /// <param name="offsetX">在对齐基础上追加的 X 偏移。</param>
+        /// <param name="offsetY">在对齐基础上追加的 Y 偏移。</param>
+        /// <param name="align">素材对齐方式。</param>
+        /// <returns>
+        /// <see cref="HResult.S_OK"/> 表示成功；<see cref="HResult.S_FALSE"/> 表示素材加载失败；
+        /// <see cref="HResult.E_POINTER"/> 表示句柄或 shpFile 为空；
+        /// <see cref="HResult.E_INVALIDARG"/> 表示句柄不是 Panel / Dialog，或 align 越界。
+        /// </returns>
+        public static int Panel_SetShpBackground(
+            IntPtr panel, string shpFile, string paletteFile, int frame, int offsetX, int offsetY, UIExtShpAlign align)
+        {
+            if (panel == IntPtr.Zero)
+                return HResult.E_POINTER;
+
+            return UIExt_Panel_SetShpBackground(panel, shpFile, paletteFile, frame, offsetX, offsetY, (int)align);
         }
 
         // ============ Button ============
@@ -805,6 +837,29 @@ namespace InteropUtils
                 return HResult.E_POINTER;
 
             return UIExt_Button_Click(button);
+        }
+
+        // 对应 Phobos: HRESULT UIExt_Button_SetIconFromFile(void* pButton, const char* filename)
+        [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern int UIExt_Button_SetIconFromFile(
+            IntPtr pButton, [MarshalAs(UnmanagedType.LPStr)] string filename);
+
+        /// <summary>
+        /// 按文件名直接把 PCX 素材设置为按钮图标（由 Phobos 侧 PCX::Instance 加载并缓存）。
+        /// 对应 Phobos Interop API：<c>UIExt_Button_SetIconFromFile</c>。
+        /// </summary>
+        /// <param name="button">Button / IconButton 句柄。</param>
+        /// <param name="filename">PCX 文件名（ANSI，如 "Blizzard.pcx"）。</param>
+        /// <returns>
+        /// <see cref="HResult.S_OK"/> 表示成功；<see cref="HResult.S_FALSE"/> 表示素材加载失败；
+        /// <see cref="HResult.E_POINTER"/> 表示句柄为空；<see cref="HResult.E_INVALIDARG"/> 表示句柄不是 Button。
+        /// </returns>
+        public static int Button_SetIconFromFile(IntPtr button, string filename)
+        {
+            if (button == IntPtr.Zero)
+                return HResult.E_POINTER;
+
+            return UIExt_Button_SetIconFromFile(button, filename);
         }
 
         // ============ CheckBox ============
