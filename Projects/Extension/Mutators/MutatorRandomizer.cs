@@ -1,4 +1,4 @@
-﻿using DynamicPatcher;
+using DynamicPatcher;
 using Microsoft.CSharp;
 using PatcherYRpp;
 using System;
@@ -90,6 +90,77 @@ namespace Extension.Mutators
         // 进程级一次性初始化标志：AvailableMutators 是静态配置（内容固定），只允许初始化一次。
         // 用独立标志而非 Count>0 判断，避免语义混淆。
         private static bool Initialized = false;
+
+        // 选择器配置（由 MutatorSelector.Start() 在开局设置）：禁用的因子不参与随机，RPG 模式下过滤 RPG 不可用因子
+        public static HashSet<string> BannedMutators = new HashSet<string>();
+        public static bool FilterRPG = false;
+
+        // 代码因子 RPG 可用性缓存（避免随机函数里反复反射实例化）
+        private static readonly Dictionary<string, bool> RpgAvailabilityCache = new Dictionary<string, bool>();
+
+        private static bool IsRPGAllowed(string name, string swid)
+        {
+            if (swid != "")
+                return true; // INI 实现因子没有类，默认 RPG 可用
+
+            if (RpgAvailabilityCache.TryGetValue(name, out var allowed))
+                return allowed;
+
+            bool result = true;
+            try
+            {
+                var mutatorType = Type.GetType("Extension.Mutators." + name);
+                if (mutatorType != null && !mutatorType.IsAbstract && typeof(Mutator).IsAssignableFrom(mutatorType))
+                {
+                    var mutator = (Mutator)Activator.CreateInstance(mutatorType, Pointer<HouseClass>.Zero);
+                    result = mutator != null && mutator.IsAvailableInRPG;
+                }
+            }
+            catch
+            {
+                result = true;
+            }
+
+            RpgAvailabilityCache[name] = result;
+            return result;
+        }
+
+        /// <summary>该因子是否可被随机选中（未被禁用，且 RPG 过滤下可用）。</summary>
+        public static bool IsRandomizable(string name, (string SWID, int Score) pair)
+        {
+            if (BannedMutators.Contains(name))
+                return false;
+            if (FilterRPG && !IsRPGAllowed(name, pair.SWID))
+                return false;
+            return true;
+        }
+
+        /// <summary>暴露可用因子注册表（供选择器构建 UI 用）。</summary>
+        public static IEnumerable<KeyValuePair<string, (string SWID, int Score)>> GetAvailableMutators()
+        {
+            return AvailableMutators;
+        }
+
+        /// <summary>查询残酷+等级的条件限制（分数/数量范围）。</summary>
+        public static bool TryGetBrutalPlusParams(int level, out int sumMin, out int sumMax, out int countMin, out int countMax)
+        {
+            if (BrutalPlusParams.TryGetValue(level, out var p))
+            {
+                sumMin = p.sumMin;
+                sumMax = p.sumMax;
+                countMin = p.countMin;
+                countMax = p.countMax;
+                return true;
+            }
+            sumMin = sumMax = countMin = countMax = 0;
+            return false;
+        }
+
+        /// <summary>按中文名查描述（INI 实现因子用）。</summary>
+        public static string GetMutatorDescription(string chineseName)
+        {
+            return MutatorDesc.TryGetValue(chineseName, out var desc) ? desc : "";
+        }
         public static List<Type> AvailableMutatorsForRandom = new List<Type>()
         { 
             typeof(BlackDeath),

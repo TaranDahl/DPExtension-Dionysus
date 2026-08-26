@@ -104,6 +104,8 @@
     <Compile Include="Mutators\MutatorRandomizer.cs" />
     <Compile Include="Mutators\MutatorReznovScript.cs" />
     <Compile Include="Mutators\MutatorRhadScript.cs" />
+    <Compile Include="Mutators\MutatorSelector.cs" />
+    <Compile Include="Mutators\MutatorSelectionConfig.cs" />
     <Compile Include="Mutators\OrbitalStrike.cs" />
     <Compile Include="Mutators\Outbreak.cs" />
     <Compile Include="Mutators\PointDefenseDroneScript.cs" />

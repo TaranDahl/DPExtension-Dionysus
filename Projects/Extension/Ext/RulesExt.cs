@@ -1,7 +1,9 @@
 using DynamicPatcher;
+using Extension.Mutators;
 using Extension.Utilities;
 using PatcherYRpp;
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 
@@ -23,6 +25,9 @@ namespace Extension.Ext
         // ===== 示例字段：原版 [General]BuildSpeed（浮点数，建造速度倍率，默认 1.0） =====
         public float BuildSpeed;
 
+        // ===== [Basic] 突变因子选择器配置 =====
+        public MutatorSelectionConfig MutatorSelection = new MutatorSelectionConfig();
+
         public RulesExt(Pointer<RulesClass> OwnerObject) : base(OwnerObject)
         {
             BuildSpeed = 1.0f;
@@ -41,7 +46,58 @@ namespace Extension.Ext
             // 示例字段：从 [General]BuildSpeed 读取（原版字段，rulesmd.ini 里存在）
             reader.ReadNormal(RulesClass.SectionGeneral, "BuildSpeed", ref BuildSpeed);
 
-            Logger.Log("[RulesExt] LoadFromINIFile: BuildSpeed={0}\n", BuildSpeed);
+            // 突变因子选择器配置（[Basic]）
+            ReadMutatorSelection(reader);
+
+            Logger.Log("[RulesExt] LoadFromINIFile: BuildSpeed={0}, MutatorMode={1}\n", BuildSpeed, MutatorSelection.Mode);
+        }
+
+        /// <summary>读取 [Basic] 节下的突变因子选择器配置。</summary>
+        private void ReadMutatorSelection(INIReader reader)
+        {
+            const string section = "Basic";
+
+            reader.ReadNormal(section, "IsRPG", ref MutatorSelection.IsRPG);
+
+            string banned = null;
+            if (reader.ReadNormal(section, "BannedMutators", ref banned))
+                MutatorSelection.BannedMutators = new HashSet<string>(ParseNameList(banned));
+
+            string mode = null;
+            if (reader.ReadNormal(section, "MutatorSelectionMode", ref mode)
+                && Enum.TryParse(mode, true, out MutatorSelectionMode parsedMode))
+            {
+                MutatorSelection.Mode = parsedMode;
+            }
+
+            reader.ReadNormal(section, "BrutalLevel", ref MutatorSelection.BrutalLevel);
+            MutatorSelection.BrutalLevel = Math.Max(1, Math.Min(6, MutatorSelection.BrutalLevel));
+
+            reader.ReadNormal(section, "RandomCount", ref MutatorSelection.RandomCount);
+            if (MutatorSelection.RandomCount < 1)
+                MutatorSelection.RandomCount = 1;
+
+            string forced = null;
+            if (reader.ReadNormal(section, "ForcedMutators", ref forced))
+                MutatorSelection.ForcedMutators = ParseNameList(forced);
+
+            Logger.Log("[RulesExt] MutatorSelection: Mode={0}, IsRPG={1}, BrutalLevel={2}, RandomCount={3}, Banned={4}, Forced={5}\n",
+                MutatorSelection.Mode, MutatorSelection.IsRPG, MutatorSelection.BrutalLevel, MutatorSelection.RandomCount,
+                string.Join(",", MutatorSelection.BannedMutators), string.Join(",", MutatorSelection.ForcedMutators));
+        }
+
+        private static List<string> ParseNameList(string value)
+        {
+            var list = new List<string>();
+            if (string.IsNullOrEmpty(value))
+                return list;
+            foreach (var part in value.Split(','))
+            {
+                var name = part.Trim();
+                if (name.Length > 0)
+                    list.Add(name);
+            }
+            return list;
         }
 
         public override void SaveToStream(IStream stream)
