@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 namespace Extension.Mutators
 {
     [Serializable]
-    public class SlimPackings : BuffMutator
+    public class SlimPickings : BuffMutator
     {
         // 数值调整：
         // 资源总量按星际版本*汇率（3）*估计经济比率（4）
@@ -27,7 +27,7 @@ namespace Extension.Mutators
 
         protected override bool IsBuffEnemy => true;
 
-        public SlimPackings(Pointer<HouseClass> owner) : base(owner) { }
+        public SlimPickings(Pointer<HouseClass> owner) : base(owner) { }
         public override bool Update()
         {
             if (!base.Update())
@@ -88,16 +88,16 @@ namespace Extension.Mutators
         protected override void BuffTechno(Pointer<TechnoClass> techno)
         {
             var ext = TechnoExt.ExtMap.Find(techno);
-            if (ext.Get(SlimPackingsMinerBuff.ID) == null)
-                ext.CreateDecorator<SlimPackingsMinerBuff>(SlimPackingsMinerBuff.ID, "SlimPackingsMinerBuff", this);
+            if (ext.Get(SlimPickingsMinerBuff.ID) == null)
+                ext.CreateDecorator<SlimPickingsMinerBuff>(SlimPickingsMinerBuff.ID, "SlimPickingsMinerBuff", this);
         }
         protected override void UnbuffTechno(Pointer<TechnoClass> techno)
         {
             var ext = TechnoExt.ExtMap.Find(techno);
-            ext.Remove(SlimPackingsMinerBuff.ID);
+            ext.Remove(SlimPickingsMinerBuff.ID);
         }
 
-        // SlimPackings
+        // SlimPickings
         private const int StdMoney = 600;
         private int SpawnCrateCounter = 0;
         private List<Crate> MyCrates = new List<Crate>();
@@ -167,7 +167,7 @@ namespace Extension.Mutators
         {
             foreach (var mutator in Mutator.Array)
             {
-                var slimPacking = mutator as SlimPackings;
+                var slimPacking = mutator as SlimPickings;
                 if (slimPacking != null)
                 {
                     for (int i = 0; i < slimPacking.MyCrates.Count; i++)
@@ -185,13 +185,13 @@ namespace Extension.Mutators
 
 
         [Serializable]
-        private class SlimPackingsMinerBuff : MutatorEventDecorator
+        private class SlimPickingsMinerBuff : MutatorEventDecorator
         {
             // Decorator
             // TODO : Fix me
             public static DecoratorId ID => new DecoratorId((int)TechnoDecoratorIDs.UniqueDecorator);
 
-            public SlimPackingsMinerBuff(Mutator mutator) : base(mutator) { }
+            public SlimPickingsMinerBuff(Mutator mutator) : base(mutator) { }
 
             // EventDecorator
             public override unsafe void OnUpdate()

@@ -1,4 +1,4 @@
-﻿using DynamicPatcher;
+using DynamicPatcher;
 using Extension.AttackWave;
 using Extension.Decorators;
 using Extension.Mutators;
@@ -115,6 +115,7 @@ namespace Extension.Ext
 
             // 派生缓存：每局重建，不入档（读档后由后续逻辑重建）
             MutatorRandomizer.Init(); // 进程级一次：检查因子类型/SWID 有效性，填充 AvailableMutators（幂等）
+            MutatorSelector.Start(); // 按 [Basic] 配置启动突变因子选择器（自动模式或 Manual UI）
             MutatorCacheManager.OnGameStart(); // 构建单位等级表（遍历 TechnoTypeClass）
             TargetCellMutator.OnUsableAreaChange(); // 缓存地图格子/安全区（遍历 TerrainClass/MapClass）
             global.AttackWaveManager.OnInit(); // 按 AI 阵营选择本局攻击波次类型

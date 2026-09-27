@@ -117,7 +117,7 @@
     <Compile Include="Mutators\PurifyBeamScript.cs" />
     <Compile Include="Mutators\SelfDestruction.cs" />
     <Compile Include="Mutators\Shortsighted.cs" />
-    <Compile Include="Mutators\SlimPackings.cs" />
+    <Compile Include="Mutators\SlimPickings.cs" />
     <Compile Include="Mutators\TemporalField.cs" />
     <Compile Include="Mutators\TimeWarp.cs" />
     <Compile Include="Mutators\Transmutation.cs" />

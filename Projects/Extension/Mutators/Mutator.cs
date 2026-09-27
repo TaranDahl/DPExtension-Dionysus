@@ -377,29 +377,30 @@ namespace Extension.Mutators
             // 文字提示
             string hint = "激活突变因子:" + UIName;
             MessageListClass.Instance.PrintMessage(hint, (ColorSchemeIndex)(HouseClass.Player.Ref.ColorSchemeIndex));
+            // 已被新 UI 代替
             // 在超武栏显示
-            string swName = this.GetType().Name + "Icon";
-            var swType = SuperWeaponTypeClass.ABSTRACTTYPE_ARRAY.Find(swName);
-            if (swType.IsNull)
-            {
-                Logger.Log(swName + " don't exist!");
-            }
-            else
-            {
-                foreach (var house in HouseClass.Array)
-                {
-                    if (house.Ref.ControlledByHuman())
-                    {
-                        var sw = house.Ref.FindSuperWeapon(swType);
-                        sw.Ref.Grant(true, false, false);
-                        if (house == HouseClass.Player)
-                        {
-                            if (SidebarClass.Instance.AddCameo(AbstractType.Special, swType.Ref.ArrayIndex))
-                                SidebarClass.Instance.RepaintSidebar();
-                        }
-                    }
-                }
-            }
+            // string swName = this.GetType().Name + "Icon";
+            // var swType = SuperWeaponTypeClass.ABSTRACTTYPE_ARRAY.Find(swName);
+            // if (swType.IsNull)
+            // {
+            //     Logger.Log(swName + " don't exist!");
+            // }
+            // else
+            // {
+            //     foreach (var house in HouseClass.Array)
+            //     {
+            //         if (house.Ref.ControlledByHuman())
+            //         {
+            //             var sw = house.Ref.FindSuperWeapon(swType);
+            //             sw.Ref.Grant(true, false, false);
+            //             if (house == HouseClass.Player)
+            //             {
+            //                 if (SidebarClass.Instance.AddCameo(AbstractType.Special, swType.Ref.ArrayIndex))
+            //                     SidebarClass.Instance.RepaintSidebar();
+            //             }
+            //         }
+            //     }
+            // }
         }
         public virtual void Uninit() 
         {

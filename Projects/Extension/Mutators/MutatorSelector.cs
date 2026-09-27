@@ -60,6 +60,11 @@ namespace Extension.Mutators
         private static int CountValue = 1;
         private static IntPtr CountLabelHandle = IntPtr.Zero;
         private static int MaxSelectableCount;
+        // 随机数量上限（最多 10，且不超过可用因子数）
+        private static int CountMax = 1;
+        // 增减键句柄（用于到达上下限时禁用）
+        private static IntPtr CountUpButton = IntPtr.Zero;
+        private static IntPtr CountDownButton = IntPtr.Zero;
         // 数量滚轮：隐藏的 1x1 PageView，每页对应一个数量值
         private static IntPtr CountWheelPageView = IntPtr.Zero;
         private static int LastCountWheelPage = -1;
@@ -68,6 +73,9 @@ namespace Extension.Mutators
         private static IntPtr GridPageLabel = IntPtr.Zero;
         private static IntPtr GridPageView = IntPtr.Zero;
         private static int LastGridPage = -1;
+        // 网格翻页键（用于首/末页禁用）
+        private static IntPtr GridPrevButton = IntPtr.Zero;
+        private static IntPtr GridNextButton = IntPtr.Zero;
 
         // ============ 生命周期 ============
 
@@ -137,8 +145,9 @@ namespace Extension.Mutators
                 if (page != LastCountWheelPage)
                 {
                     LastCountWheelPage = page;
-                    CountValue = Math.Max(1, Math.Min(MaxSelectableCount, page + 1));
+                    CountValue = Math.Max(1, Math.Min(CountMax, CountMax - page)); // 滚轮向上=数量增加
                     UpdateCountLabel();
+                    UpdateCountButtons(); // 滚轮改数量后同步增减键禁用状态
                 }
             }
         }
@@ -280,16 +289,13 @@ namespace Extension.Mutators
         private static void OpenActiveStrip()
         {
             IntPtr strip;
-            if (PhobosUIExt.CreateIconStrip(0, 0, 60, 48, 4, out strip) != HResult.S_OK || strip == IntPtr.Zero)
+            if (PhobosUIExt.CreateIconStrip(0, 0, 60, 60, 4, out strip) != HResult.S_OK || strip == IntPtr.Zero)
                 return;
 
-            PhobosUIExt.IconStrip_SetItemSize(strip, 60, 48);
+            PhobosUIExt.IconStrip_SetItemSize(strip, 59, 61);
             PhobosUIExt.IconStrip_SetSpacing(strip, 4);
-            // 右侧、垂直居中偏下，避开屏幕顶部（PCX 绘制触及屏幕顶部区域会崩）。
-            // 不用 Right 锚点：锚点会随激活条高度变化自动重新居中，导致条顶部上下漂移。
-            int stripX = DSurface.ViewBounds.Width - 48 - 60;
-            int stripY = DSurface.ViewBounds.Height / 2 + 32;
-            PhobosUIExt.SetPos(strip, stripX, stripY);
+            // 右侧垂直居中（Right 锚点自动按当前高度居中），紧靠右边缘，避开屏幕顶部（PCX 绘制触及屏幕顶部区域会崩）
+            PhobosUIExt.SetAnchor(strip, UIExtAnchor.Right, 0, 0);
             PhobosUIExt.Open(strip, UIExtModal.None);
             ActiveStrip = strip;
         }
@@ -333,18 +339,57 @@ namespace Extension.Mutators
                     continue;
 
                 IntPtr icon;
-                if (PhobosUIExt.CreateIconButton(0, 0, 60, 48, out icon) != HResult.S_OK || icon == IntPtr.Zero)
+                if (PhobosUIExt.CreateIconButton(0, 0, 60, 60, out icon) != HResult.S_OK || icon == IntPtr.Zero)
                     continue;
 
-                if (!TrySetButtonIcon(icon, entry.ClassName) && !string.IsNullOrEmpty(entry.Name))
-                    PhobosUIExt.SetText(icon, entry.Name[0].ToString());
+                // 激活条只显示图标，不设文字（即使图标加载失败也不显示文字）
+                TrySetButtonIcon(icon, entry.ClassName);
                 PhobosUIExt.SetTooltip(icon, entry.Name, entry.Description);
+                DelegateTooltip(icon);
+                ApplyTooltipMaxWidth(icon);
+
+                // 激活条图标：无背景填充、悬停不描边
+                PhobosUIExt.Button_SetFillOpacity(icon, 0);
+                PhobosUIExt.Button_SetDrawHoverBorder(icon, false);
 
                 PhobosUIExt.AddChild(ActiveStrip, icon);
                 StripItems.Add(icon);
             }
 
             PhobosUIExt.IconStrip_Refresh(ActiveStrip);
+        }
+
+        // ============ 工具提示布局 ============
+
+        /// <summary>把控件的工具提示布局权上交给父控件：对话框子控件即交给对话框，由祖先沿自身边缘绘制，避免遮挡兄弟控件。无父控件（根）不受影响。</summary>
+        private static void DelegateTooltip(IntPtr control)
+        {
+            if (control != IntPtr.Zero)
+                PhobosUIExt.SetTooltipDelegated(control, true);
+        }
+
+        /// <summary>批量上交一组控件的工具提示布局权。</summary>
+        private static void DelegateTooltip(params IntPtr[] controls)
+        {
+            foreach (var control in controls)
+                DelegateTooltip(control);
+        }
+
+        // 一个中文字符约 16px，240px ≈ 每行 15 字
+        private const int TooltipMaxLineWidth = 15 * 16;
+
+        /// <summary>把工具提示最大行宽设为约 15 个中文字（240px），超宽自动换行。</summary>
+        private static void ApplyTooltipMaxWidth(IntPtr control)
+        {
+            if (control != IntPtr.Zero)
+                PhobosUIExt.SetTooltipMaxWidth(control, TooltipMaxLineWidth);
+        }
+
+        /// <summary>批量设置一组控件的工具提示最大行宽。</summary>
+        private static void ApplyTooltipMaxWidth(params IntPtr[] controls)
+        {
+            foreach (var control in controls)
+                ApplyTooltipMaxWidth(control);
         }
 
         // ============ Manual UI：触发图标 ============
@@ -355,11 +400,12 @@ namespace Extension.Mutators
             if (PhobosUIExt.CreateIconButton(0, 0, 60, 48, out icon) != HResult.S_OK || icon == IntPtr.Zero)
                 return;
 
-            // 触发按钮位于右侧垂直居中，PCX 图标不会触及屏幕顶部区域
-            if (!TrySetButtonIcon(icon, "MutStart"))
-                PhobosUIExt.SetText(icon, "选");
+            // 触发按钮只显示图标，不设文字；右侧垂直居中（PCX 绘制触及屏幕顶部区域会崩）
+            TrySetButtonIcon(icon, "MutStart");
             PhobosUIExt.SetTooltip(icon, "突变因子选择", "点击打开突变因子选择器");
-            PhobosUIExt.SetAnchor(icon, UIExtAnchor.Right, -40, 0); // 右侧垂直居中（PCX 绘制触及屏幕顶部区域会崩）
+            DelegateTooltip(icon);
+            ApplyTooltipMaxWidth(icon);
+            PhobosUIExt.SetAnchor(icon, UIExtAnchor.Right, 0, 0);
             PhobosUIExt.Button_SetOnClick(icon, () => OpenModeDialog());
             PhobosUIExt.Open(icon, UIExtModal.None);
             TriggerIcon = icon;
@@ -369,6 +415,13 @@ namespace Extension.Mutators
 
         private static int CenterX(int width) => (DSurface.ViewBounds.Width - width) / 2;
         private static int CenterY(int height) => (DSurface.ViewBounds.Height - height) / 2;
+
+        /// <summary>对话框统一样式：白色边框 + 黑色半透明背景（Panel 默认不画背景/边框）。</summary>
+        private static void ApplyDialogStyle(IntPtr dialog)
+        {
+            PhobosUIExt.SetBorder(dialog, true, unchecked((int)0x00FFFFFF));
+            PhobosUIExt.SetBackColor(dialog, 0, 0, 0, 180);
+        }
 
         private static void CloseDialog()
         {
@@ -382,9 +435,14 @@ namespace Extension.Mutators
             GridPageView = IntPtr.Zero;
             GridPageLabel = IntPtr.Zero;
             LastGridPage = -1;
+            GridPrevButton = IntPtr.Zero;
+            GridNextButton = IntPtr.Zero;
             CountLabelHandle = IntPtr.Zero;
             CountWheelPageView = IntPtr.Zero;
             LastCountWheelPage = -1;
+            CountUpButton = IntPtr.Zero;
+            CountDownButton = IntPtr.Zero;
+            CountMax = 1;
         }
 
         /// <summary>选择完成：关闭触发图标、退出 Manual 模式。</summary>
@@ -406,29 +464,34 @@ namespace Extension.Mutators
                 return;
             DialogOpen = true;
 
-            const int dw = 380, dh = 240;
+            const int dw = 280, dh = 200;
             int dx = CenterX(dw);
             int dy = CenterY(dh);
 
             IntPtr dialog;
-            if (PhobosUIExt.CreateDialog(dx, dy, dw, dh, "突变因子选择", out dialog) != HResult.S_OK || dialog == IntPtr.Zero)
+            if (PhobosUIExt.CreateDialog(dx, dy, dw, dh, "选择突变因子激活方式", out dialog) != HResult.S_OK || dialog == IntPtr.Zero)
             {
                 DialogOpen = false;
                 return;
             }
             CurrentDialog = dialog;
+            ApplyDialogStyle(dialog);
 
+            const int bw = 100, bh = 44;
             IntPtr btnBrutal, btnRandom, btnManual;
-            PhobosUIExt.CreateButton(0, 0, 300, 44, "残酷+", out btnBrutal);
-            PhobosUIExt.CreateButton(0, 0, 300, 44, "随机因子", out btnRandom);
-            PhobosUIExt.CreateButton(0, 0, 300, 44, "指定因子", out btnManual);
+            PhobosUIExt.CreateButton(0, 0, bw, bh, "残酷+", out btnBrutal);
+            PhobosUIExt.CreateButton(0, 0, bw, bh, "随机因子", out btnRandom);
+            PhobosUIExt.CreateButton(0, 0, bw, bh, "指定因子", out btnManual);
 
             PhobosUIExt.SetTooltip(btnBrutal, "残酷+", "随机启用突变因子，直到其分数总和达到一定数值。");
             PhobosUIExt.SetTooltip(btnRandom, "随机因子", "随机启用一定数量的突变因子。");
             PhobosUIExt.SetTooltip(btnManual, "指定因子", "由你自己选择将要挑战的突变因子。");
+            DelegateTooltip(btnBrutal, btnRandom, btnManual);
+            ApplyTooltipMaxWidth(btnBrutal, btnRandom, btnManual);
 
-            int btnX = dx + (dw - 300) / 2;
-            int btnY = dy + 20;
+            // 标题在 dy+3，按钮从 dy+26 开始（留 20+ 空隙）
+            int btnX = dx + (dw - bw) / 2;
+            int btnY = dy + 26;
             PhobosUIExt.SetPos(btnBrutal, btnX, btnY);
             PhobosUIExt.SetPos(btnRandom, btnX, btnY + 56);
             PhobosUIExt.SetPos(btnManual, btnX, btnY + 112);
@@ -449,7 +512,7 @@ namespace Extension.Mutators
 
         private static void OpenBrutalLevelDialog()
         {
-            const int dw = 360, dh = 300;
+            const int dw = 260, dh = 210;
             int dx = CenterX(dw);
             int dy = CenterY(dh);
 
@@ -457,10 +520,11 @@ namespace Extension.Mutators
             if (PhobosUIExt.CreateDialog(dx, dy, dw, dh, "选择残酷+等级", out dialog) != HResult.S_OK || dialog == IntPtr.Zero)
                 return;
             CurrentDialog = dialog;
+            ApplyDialogStyle(dialog);
 
-            const int bw = 140, bh = 52, gapX = 16, gapY = 12;
+            const int bw = 100, bh = 44, gapX = 16, gapY = 12;
             int startX = dx + (dw - (2 * bw + gapX)) / 2;
-            int startY = dy + 16;
+            int startY = dy + 26;   // 标题在 dy+3，留 20+ 空隙
 
             for (int i = 0; i < 6; i++)
             {
@@ -477,6 +541,8 @@ namespace Extension.Mutators
                 {
                     PhobosUIExt.SetTooltip(btn, "残酷+" + level, "未知等级。");
                 }
+                DelegateTooltip(btn);
+                ApplyTooltipMaxWidth(btn);
 
                 int col = i % 2, row = i / 2;
                 PhobosUIExt.SetPos(btn, startX + col * (bw + gapX), startY + row * (bh + gapY));
@@ -503,44 +569,52 @@ namespace Extension.Mutators
             int dx = CenterX(dw);
             int dy = CenterY(dh);
 
-            CountValue = Math.Max(1, Math.Min(Config.RandomCount, MaxSelectableCount));
+            // 随机数量上限：最多 10，且不超过可用因子数
+            CountMax = Math.Max(1, Math.Min(10, MaxSelectableCount));
+            CountValue = Math.Max(1, Math.Min(Config.RandomCount, CountMax));
 
             IntPtr dialog;
             if (PhobosUIExt.CreateDialog(dx, dy, dw, dh, "选择随机因子数量", out dialog) != HResult.S_OK || dialog == IntPtr.Zero)
                 return;
             CurrentDialog = dialog;
+            ApplyDialogStyle(dialog);
 
+            // 数量指示器（"随机启用 X 个因子"），与增减键的中间水平对齐
             IntPtr label;
             PhobosUIExt.CreateLabel(0, 0, "", out label);
-            PhobosUIExt.SetSize(label, 60, 40);
-            PhobosUIExt.SetPos(label, dx + (dw - 60) / 2, dy + 20);
+            PhobosUIExt.SetSize(label, 170, 40);
+            PhobosUIExt.SetPos(label, dx + (dw - 170) / 2 - 5, dy + 69); // 居中再左移 5、下移 9
             CountLabelHandle = label;
 
             // 滚轮支持：API 无通用滚轮回调，复用框架 PageView 的内置滚轮翻页。
-            // 在数量指示器区域放一个隐藏的 1x1 分页视图（不绘制），每页对应一个数量值；
+            // 隐藏的 1x1 分页视图（不绘制）覆盖"文字 + 增减键"区域，每页对应一个数量值；
             // 滚轮翻页后由每帧 MutatorSelector.Update() 同步回 CountValue。
+            // 方向：框架滚轮向下=NextPage（页码+1），因此 数量 = CountMax - 页码，使滚轮向上=数量增加。
             IntPtr wheelPv;
-            PhobosUIExt.CreatePageView(dx + (dw - 68) / 2, dy + 14, 68, 52, out wheelPv);
+            PhobosUIExt.CreatePageView(dx + 60, dy + 40, 200, 80, out wheelPv);
             PhobosUIExt.PageView_SetGrid(wheelPv, 1, 1, 1, 1, 0, 0);
-            for (int p = 0; p < MaxSelectableCount; p++)
+            for (int p = 0; p < CountMax; p++)
             {
                 IntPtr placeholder;
                 PhobosUIExt.CreatePanel(0, 0, 1, 1, out placeholder);
                 PhobosUIExt.AddChild(wheelPv, placeholder);
             }
             PhobosUIExt.PageView_SetGrid(wheelPv, 1, 1, 1, 1, 0, 0); // 添加完占位后重排分页
-            PhobosUIExt.PageView_SetPage(wheelPv, CountValue - 1);
+            PhobosUIExt.PageView_SetPage(wheelPv, CountMax - CountValue);
             CountWheelPageView = wheelPv;
-            LastCountWheelPage = CountValue - 1;
+            LastCountWheelPage = CountMax - CountValue;
 
             IntPtr btnUp, btnDown, btnOk;
-            PhobosUIExt.CreateButton(0, 0, 56, 34, "▲", out btnUp);
-            PhobosUIExt.CreateButton(0, 0, 56, 34, "▼", out btnDown);
-            PhobosUIExt.CreateButton(0, 0, 120, 40, "确定", out btnOk);
+            PhobosUIExt.CreateButton(0, 0, 56, 34, "+", out btnUp);
+            PhobosUIExt.CreateButton(0, 0, 56, 34, "-", out btnDown);
+            PhobosUIExt.CreateButton(0, 0, 100, 40, "确定", out btnOk);
+            CountUpButton = btnUp;
+            CountDownButton = btnDown;
 
-            PhobosUIExt.SetPos(btnUp, dx + dw / 2 + 40, dy + 18);
-            PhobosUIExt.SetPos(btnDown, dx + dw / 2 + 40, dy + 56);
-            PhobosUIExt.SetPos(btnOk, dx + (dw - 120) / 2, dy + dh - 56);
+            // 增减键在右侧，成对中间与指示器水平对齐；确定键距减号键 20px
+            PhobosUIExt.SetPos(btnUp, dx + dw / 2 + 40, dy + 44);
+            PhobosUIExt.SetPos(btnDown, dx + dw / 2 + 40, dy + 82);
+            PhobosUIExt.SetPos(btnOk, dx + (dw - 100) / 2, dy + 136);
 
             PhobosUIExt.Button_SetOnClick(btnUp, () => AdjustCount(1));
             PhobosUIExt.Button_SetOnClick(btnDown, () => AdjustCount(-1));
@@ -558,6 +632,8 @@ namespace Extension.Mutators
             PhobosUIExt.AddChild(dialog, btnOk);
 
             UpdateCountLabel();
+            UpdateCountButtons();
+            DelegateTooltip(label, wheelPv, btnUp, btnDown, btnOk);
 
             PhobosUIExt.Dialog_SetCloseAction(dialog, () => { DialogOpen = false; CloseDialog(); });
             PhobosUIExt.Open(dialog, UIExtModal.BlockTactical);
@@ -565,30 +641,40 @@ namespace Extension.Mutators
 
         private static void AdjustCount(int delta)
         {
-            CountValue = Math.Max(1, Math.Min(MaxSelectableCount, CountValue + delta));
+            CountValue = Math.Max(1, Math.Min(CountMax, CountValue + delta));
             // 同步隐藏滚轮 PageView 的页码，避免按钮与滚轮混用时失步
             if (CountWheelPageView != IntPtr.Zero)
             {
-                PhobosUIExt.PageView_SetPage(CountWheelPageView, CountValue - 1);
-                LastCountWheelPage = CountValue - 1;
+                PhobosUIExt.PageView_SetPage(CountWheelPageView, CountMax - CountValue);
+                LastCountWheelPage = CountMax - CountValue;
             }
             UpdateCountLabel();
+            UpdateCountButtons();
         }
 
         private static void UpdateCountLabel()
         {
             if (CountLabelHandle == IntPtr.Zero)
                 return;
-            PhobosUIExt.SetText(CountLabelHandle, CountValue.ToString());
+            PhobosUIExt.SetText(CountLabelHandle, string.Format("随机启用 {0} 个因子", CountValue));
+        }
+
+        /// <summary>到达上下限时禁用对应增减键（下限 1，上限 CountMax）。</summary>
+        private static void UpdateCountButtons()
+        {
+            if (CountUpButton != IntPtr.Zero)
+                PhobosUIExt.SetEnabled(CountUpButton, CountValue < CountMax);
+            if (CountDownButton != IntPtr.Zero)
+                PhobosUIExt.SetEnabled(CountDownButton, CountValue > 1);
         }
 
         // ============ Manual UI：指定因子网格 ============
 
         private static void OpenMutatorGridDialog()
         {
-            const int columns = 4, rows = 4, cellW = 86, cellH = 54, gapX = 6, gapY = 6;
+            const int columns = 4, rows = 4, cellW = 86, cellH = 70, gapX = 6, gapY = 6;
             int gridW = columns * cellW + (columns - 1) * gapX;   // 362
-            int gridH = rows * cellH + (rows - 1) * gapY;         // 234
+            int gridH = rows * cellH + (rows - 1) * gapY;         // 298
 
             int dw = gridW + 40;
             int dh = gridH + 128;
@@ -599,6 +685,7 @@ namespace Extension.Mutators
             if (PhobosUIExt.CreateDialog(dx, dy, dw, dh, "选择突变因子", out dialog) != HResult.S_OK || dialog == IntPtr.Zero)
                 return;
             CurrentDialog = dialog;
+            ApplyDialogStyle(dialog);
 
             IntPtr title;
             PhobosUIExt.CreateLabel(dx + 20, dy + 10, "点击勾选因子，确定后生效", out title);
@@ -618,14 +705,18 @@ namespace Extension.Mutators
                 PhobosUIExt.SetBorder(cell, true,
                     entry.Disabled ? unchecked((int)0x00707070) : unchecked((int)0x00FFFFFF));
                 PhobosUIExt.SetTooltip(cell, entry.Name, entry.Description);
+                DelegateTooltip(cell);
+                ApplyTooltipMaxWidth(cell);
 
                 IntPtr icon;
-                PhobosUIExt.CreateIconButton(3, 3, 60, 48, out icon);
-                if (!TrySetButtonIcon(icon, entry.ClassName) && !string.IsNullOrEmpty(entry.Name))
-                    PhobosUIExt.SetText(icon, entry.Name[0].ToString());
+                PhobosUIExt.CreateIconButton(3, 3, 59, 61, out icon);
+                // 网格因子图标：只显示图标，无背景填充、悬停不描边、不显示文字
+                TrySetButtonIcon(icon, entry.ClassName);
+                PhobosUIExt.Button_SetFillOpacity(icon, 0);
+                PhobosUIExt.Button_SetDrawHoverBorder(icon, false);
 
                 IntPtr checkBox;
-                PhobosUIExt.CreateCheckBox(65, 3, 20, 48, "", out checkBox);
+                PhobosUIExt.CreateCheckBox(65, 3, 20, 61, "", out checkBox);
                 PhobosUIExt.SetChecked(checkBox, PendingSelection.Contains(entry.ClassName));
 
                 if (entry.Disabled)
@@ -656,6 +747,8 @@ namespace Extension.Mutators
             PhobosUIExt.CreateButton(0, 0, 90, 34, "上一页", out btnPrev);
             PhobosUIExt.CreateButton(0, 0, 90, 34, "下一页", out btnNext);
             PhobosUIExt.CreateButton(0, 0, 100, 34, "确定", out btnOk);
+            GridPrevButton = btnPrev;
+            GridNextButton = btnNext;
             PhobosUIExt.CreateLabel(0, 0, "", out pageLabel);
             GridPageLabel = pageLabel;
 
@@ -683,6 +776,7 @@ namespace Extension.Mutators
                 FinishSelection();
             });
 
+            DelegateTooltip(title, pageView, btnPrev, btnNext, btnOk, pageLabel);
             PhobosUIExt.AddChild(dialog, title);
             PhobosUIExt.AddChild(dialog, pageView);
             PhobosUIExt.AddChild(dialog, btnPrev);
@@ -723,6 +817,16 @@ namespace Extension.Mutators
             PhobosUIExt.PageView_GetPageIndex(pageView, out int index);
             LastGridPage = index;
             PhobosUIExt.SetText(GridPageLabel, string.Format("第 {0} / {1} 页", index + 1, count));
+            UpdateGridPageButtons(index, count);
+        }
+
+        /// <summary>首/末页时禁用对应翻页键。</summary>
+        private static void UpdateGridPageButtons(int index, int count)
+        {
+            if (GridPrevButton != IntPtr.Zero)
+                PhobosUIExt.SetEnabled(GridPrevButton, index > 0);
+            if (GridNextButton != IntPtr.Zero)
+                PhobosUIExt.SetEnabled(GridNextButton, index < count - 1);
         }
     }
 }

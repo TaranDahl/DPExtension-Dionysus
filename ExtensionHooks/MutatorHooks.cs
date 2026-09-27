@@ -1,4 +1,4 @@
-﻿using DynamicPatcher;
+using DynamicPatcher;
 using Extension.Ext;
 using PatcherYRpp;
 using System;
@@ -101,6 +101,11 @@ namespace ExtensionHooks
                 Mutator.ToBeRemovedArray.RemoveAt(0);
                 Mutator.Array.Remove(mutator);
             }
+
+            // 右侧激活条与 Mutator.Array 同步（变化时才重建）
+            MutatorSelector.RefreshActiveStrip();
+            // 每帧同步选择器 UI 状态（网格页码等）
+            MutatorSelector.Update();
             return 0;
         }
 
@@ -115,7 +120,7 @@ namespace ExtensionHooks
         public static unsafe UInt32 MapClass_CrateCollected_Mutator(REGISTERS* R)
         {
             var mapCrd = R->Stack<Pointer<CellStruct>>(0x4);
-            SlimPackings.OnCrateCollected(mapCrd.Ref);
+            SlimPickings.OnCrateCollected(mapCrd.Ref);
             return 0;
         }
 

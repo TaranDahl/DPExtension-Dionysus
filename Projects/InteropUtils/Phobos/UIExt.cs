@@ -642,6 +642,50 @@ namespace InteropUtils
             return UIExt_SetTooltip(control, title, text);
         }
 
+        // 对应 Phobos: HRESULT UIExt_SetTooltipDelegated(void* pControl, int delegated)
+        [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern int UIExt_SetTooltipDelegated(IntPtr pControl, int delegated);
+
+        /// <summary>
+        /// 设置是否将工具提示布局权委托给父控件。委托打开后，工具提示由第一个未委托的祖先
+        /// 控件在其边缘贴紧绘制，避免遮挡兄弟控件。
+        /// 对应 Phobos Interop API：<c>UIExt_SetTooltipDelegated</c>。
+        /// </summary>
+        /// <param name="control">控件句柄。</param>
+        /// <param name="delegated">true 开启委托，false 关闭委托。</param>
+        /// <returns>
+        /// <see cref="HResult.S_OK"/> 表示成功；<see cref="HResult.E_POINTER"/> 表示句柄为空。
+        /// </returns>
+        public static int SetTooltipDelegated(IntPtr control, bool delegated)
+        {
+            if (control == IntPtr.Zero)
+                return HResult.E_POINTER;
+
+            return UIExt_SetTooltipDelegated(control, delegated ? 1 : 0);
+        }
+
+        // 对应 Phobos: HRESULT UIExt_SetTooltipMaxWidth(void* pControl, int width)
+        [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern int UIExt_SetTooltipMaxWidth(IntPtr pControl, int width);
+
+        /// <summary>
+        /// 设置工具提示文本自动换行的最大宽度（像素），0 表示关闭自动换行。
+        /// 已有的 <c>\n</c> 仍作为强制换行点；宽度超过视口宽度时由 Phobos 自动钳制。
+        /// 对应 Phobos Interop API：<c>UIExt_SetTooltipMaxWidth</c>。
+        /// </summary>
+        /// <param name="control">控件句柄。</param>
+        /// <param name="width">最大行宽（像素），0 关闭换行。</param>
+        /// <returns>
+        /// <see cref="HResult.S_OK"/> 表示成功；<see cref="HResult.E_POINTER"/> 表示句柄为空。
+        /// </returns>
+        public static int SetTooltipMaxWidth(IntPtr control, int width)
+        {
+            if (control == IntPtr.Zero)
+                return HResult.E_POINTER;
+
+            return UIExt_SetTooltipMaxWidth(control, width);
+        }
+
         // 对应 Phobos: HRESULT UIExt_SetBackColor(void* pControl, int r, int g, int b, int opacity)
         [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern int UIExt_SetBackColor(IntPtr pControl, int r, int g, int b, int opacity);
@@ -860,6 +904,50 @@ namespace InteropUtils
                 return HResult.E_POINTER;
 
             return UIExt_Button_SetIconFromFile(button, filename);
+        }
+
+        // 对应 Phobos: HRESULT UIExt_Button_SetFillOpacity(void* pButton, int opacity)
+        [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern int UIExt_Button_SetFillOpacity(IntPtr pButton, int opacity);
+
+        /// <summary>
+        /// 设置按钮背景填充不透明度（0-100）。0 完全禁用背景填充；1-99 半透明；&gt;= 100 不透明。
+        /// 对应 Phobos Interop API：<c>UIExt_Button_SetFillOpacity</c>。
+        /// </summary>
+        /// <param name="button">Button / IconButton 句柄。</param>
+        /// <param name="opacity">0-100。</param>
+        /// <returns>
+        /// <see cref="HResult.S_OK"/> 表示成功；<see cref="HResult.E_POINTER"/> 表示句柄为空；
+        /// <see cref="HResult.E_INVALIDARG"/> 表示句柄不是 Button。
+        /// </returns>
+        public static int Button_SetFillOpacity(IntPtr button, int opacity)
+        {
+            if (button == IntPtr.Zero)
+                return HResult.E_POINTER;
+
+            return UIExt_Button_SetFillOpacity(button, opacity);
+        }
+
+        // 对应 Phobos: HRESULT UIExt_Button_SetDrawHoverBorder(void* pButton, int draw)
+        [DllImport("Phobos.dll", CallingConvention = CallingConvention.StdCall)]
+        private static extern int UIExt_Button_SetDrawHoverBorder(IntPtr pButton, int draw);
+
+        /// <summary>
+        /// 控制悬停时是否绘制白色描边。
+        /// 对应 Phobos Interop API：<c>UIExt_Button_SetDrawHoverBorder</c>。
+        /// </summary>
+        /// <param name="button">Button / IconButton 句柄。</param>
+        /// <param name="draw">true 绘制描边，false 不绘制。</param>
+        /// <returns>
+        /// <see cref="HResult.S_OK"/> 表示成功；<see cref="HResult.E_POINTER"/> 表示句柄为空；
+        /// <see cref="HResult.E_INVALIDARG"/> 表示句柄不是 Button。
+        /// </returns>
+        public static int Button_SetDrawHoverBorder(IntPtr button, bool draw)
+        {
+            if (button == IntPtr.Zero)
+                return HResult.E_POINTER;
+
+            return UIExt_Button_SetDrawHoverBorder(button, draw ? 1 : 0);
         }
 
         // ============ CheckBox ============

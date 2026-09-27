@@ -15,7 +15,7 @@ namespace Extension.Mutators
         private static SwizzleablePointer<TechnoTypeClass> Propagator => new SwizzleablePointer<TechnoTypeClass>(TechnoTypeClass.ABSTRACTTYPE_ARRAY.Find("MACJOHN"));
         private static string SpawnSound => "EVA_UnitsInCombat";
         public override string UIName => "同化体";
-        public override string Description => "无形的麻酱缓慢爬向你的基地，被其接触到的任何单位和建筑都将变成和它们一样的复制体。";
+        public override string Description => "无形的软泥怪缓慢爬向你的基地，被其接触到的任何单位和建筑都将变成和它们一样的复制体。";
         public override bool IsAvailableInRPG => false;
         public override int Score => 8;
         private int counter = 0;
